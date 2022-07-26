@@ -1,0 +1,1 @@
+from .main import encode2neo4j
