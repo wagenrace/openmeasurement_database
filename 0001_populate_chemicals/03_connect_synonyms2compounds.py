@@ -29,7 +29,7 @@ def get_current_connections():
     ).data()[0]["count(r)"]
     return current_connection
 
-current_connection = get_current_connections() + 3e7
+current_connection = get_current_connections()
 temp_dir = "temp"
 os.makedirs(temp_dir, exist_ok=True)
 
