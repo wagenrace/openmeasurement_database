@@ -37,7 +37,7 @@ synonyms_per_file = 1e6
 wrong_md5 = 0
 all_results = []
 while True:
-    
+
     # Get
 
     file_name = f"pc_synonym_value_{str(number).zfill(6)}.ttl.gz"
@@ -60,7 +60,7 @@ while True:
             if line.startswith("@prefix"):
                 continue
             synonym_id_raw, _, synonym = line.split("\t")
-            if synonym_id_raw == '':
+            if synonym_id_raw == "":
                 continue
 
             synonym_id = synonym_id_raw.replace("synonym:MD5_", "")
@@ -71,7 +71,7 @@ while True:
                 if len(result) > 1:
                     print(f"Multiple hits with {synonym}")
                     continue
-                
+
                 # If the md5_id and md5 synonym mismatch there is something wrong
                 # Most of the time it is a weird encode-decode bug
                 if hashlib.md5(result[0].encode("utf-8")).hexdigest() == synonym_id:
@@ -105,7 +105,9 @@ for i in range(ceil(len(all_results) / split_size)):
         map(encode2neo4j, part_results),
         columns=["synonym"],
     )
-    result_df["synonym_id"] = [hashlib.md5(val.encode("utf-8")).hexdigest() for val in result_df['synonym']]
+    result_df["synonym_id"] = [
+        hashlib.md5(val.encode("utf-8")).hexdigest() for val in result_df["synonym"]
+    ]
     result_df.to_csv(
         os.path.join(neo4j_import_loc, f"synonyms_{i}.csv"),
         index=False,
@@ -117,7 +119,8 @@ del all_results
 
 #%% Adding them to the graph
 from tqdm import tqdm
-graph = Graph("bolt://localhost:" + port, name="test", auth=(user, pswd))
+
+graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
 
 for i in tqdm(range(number_files)):
     graph.run(
