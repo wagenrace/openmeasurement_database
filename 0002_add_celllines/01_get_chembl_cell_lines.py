@@ -55,7 +55,7 @@ with gzip.open(gz_file_loc, "r") as file:
 #%% Adding them to the graph
 full_tll_path = os.path.abspath(tll_file_loc).replace("\\", "\\\\")
 
-graph = Graph("bolt://localhost:" + port, name="test", auth=(user, pswd))
+graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
 
 #%% create n10s unique uri constraint
 graph.run(
