@@ -1,12 +1,11 @@
 #%%
 import json
-import os
 from os.path import join as path_join
 
 import pandas as pd
 from py2neo import Graph
-from cellline2lucence_query import cellline2lucence_query
 
+from cellline2lucence_query import cellline2lucence_query
 
 with open("config.json") as f:
     config = json.load(f)
@@ -14,14 +13,8 @@ with open("config.json") as f:
 port = config["port"]
 user = config["user"]
 pswd = config["pswd"]
-neo4j_import_loc = config["neo4j_import_loc"]
-
-temp_dir = "temp"
-os.makedirs(temp_dir, exist_ok=True)
 
 gi50 = pd.read_csv(path_join("data", "GI50.csv"))
-print(gi50.shape)
-gi50.head()
 
 #%% Adding them to the graph
 graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
