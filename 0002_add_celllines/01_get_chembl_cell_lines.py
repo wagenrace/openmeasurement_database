@@ -78,9 +78,17 @@ graph.run(
     """
 )
 
-#%% Add constrain
+#%% Add fulltext indexing
 graph.run(
     """
     CREATE FULLTEXT INDEX cellLineFullText FOR (c:CellLine) ON EACH [c.description]    
+    """
+)
+
+#%% Add index. Fulltext can search but not extremely fast if you already know the full name
+# It is an index not an constrain because not all name are unique
+graph.run(
+    """
+    CREATE index cellLineLabel if not exists for (c:CellLine) ON c.label;
     """
 )
