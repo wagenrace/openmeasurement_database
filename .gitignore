@@ -6,3 +6,4 @@
 */config.json
 *.pyc
 */data
+0003_add_nci60/cellline_nci60_to_chembl_raw.json
