@@ -25,11 +25,16 @@ update_synonym_url = config.get(
 neo4j_import_loc = config["neo4j_import_loc"]
 
 all_nsc_numbers = pd.read_csv(gi50_path, usecols=["NSC"], index_col=False).NSC.unique()
+
+result_dir = os.path.join("results", "completing_nscs")
+os.makedirs(result_dir, exist_ok=True)
+
 #%% Adding them to the graph
 graph = Graph(neo4j_url, auth=(user, pswd))
 
-missing_synonyms = []
 synonym_without_compounds = []
+missing_nsc_number = []
+wrong_synonyms = {}
 results = {}
 for nsc_number in tqdm(all_nsc_numbers):
     response = graph.run(
@@ -44,7 +49,7 @@ for nsc_number in tqdm(all_nsc_numbers):
     """
     ).data()
     if len(response) == 0:
-        missing_synonyms.append(int(nsc_number))
+        missing_nsc_number.append(int(nsc_number))
         continue
 
     filtered_response = []
@@ -54,7 +59,10 @@ for nsc_number in tqdm(all_nsc_numbers):
             f"nsc {nsc_number}",
             f"nsc-{nsc_number}",
         ]:
-            print(f"Name {name} is not part of nsc {nsc_number}")
+            fails = wrong_synonyms.get(int(nsc_number), [])
+            fails.append(name)
+            wrong_synonyms[int(nsc_number)] = fails
+            continue
         if r.get("compoundId") is None:
             synonym_without_compounds.append(
                 {"id": r.get("synonymId"), "nsc": int(nsc_number)}
@@ -62,16 +70,22 @@ for nsc_number in tqdm(all_nsc_numbers):
             continue
         filtered_response.append(r)
 
-    results[int(nsc_number)] = filtered_response
+    if filtered_response:
+        results[int(nsc_number)] = filtered_response
+    else:
+        missing_nsc_number.append(int(nsc_number))
 
-with open(r"nsc_number_2_synonymn_raw.json", "w") as f:
+with open(os.path.join(result_dir, r"nsc_number_2_synonyms_raw.json"), "w") as f:
     json.dump(results, f)
 
-with open(r"nsc_missing_compound_raw.json", "w") as f:
-    json.dump(synonym_without_compounds, f)
+with open(os.path.join(result_dir, r"nsc_number_missing_nsc.json"), "w") as f:
+    json.dump(missing_nsc_number, f)
 
-with open(r"nsc_missing_synonyms_raw.json", "w") as f:
-    json.dump(missing_synonyms, f)
+with open(os.path.join(result_dir, r"wrong_nsc_synonym.json"), "w") as f:
+    json.dump(wrong_synonyms, f)
+
+with open(os.path.join(result_dir, r"synonyms_without_compounds.json"), "w") as f:
+    json.dump(synonym_without_compounds, f)
 
 #%%
 no_attribute = []
@@ -99,8 +113,8 @@ for synonym in tqdm(synonym_without_compounds):
         for pubChemCompId in compounds_pubChemCompId:
             graph.run(
                 f"""
-                    MATCH (sym:Synonym {{pubChemSynId: "{synonym_id}"}})
-                    MATCH (comp:Compound {{pubChemCompId: "{pubChemCompId}"}})
+                    MERGE (sym:Synonym {{pubChemSynId: "{synonym_id}"}})
+                    MERGE (comp:Compound {{pubChemCompId: "{pubChemCompId}"}})
                     MERGE (sym)-[:IS_ATTRIBUTE_OF]->(comp);
                     """
             )
@@ -108,19 +122,18 @@ for synonym in tqdm(synonym_without_compounds):
         total_fails.append(synonym)
         print(synonym)
 
-with open(r"nsc_missing_synonyms_without_attribute.json", "w") as f:
+with open(
+    os.path.join(result_dir, r"nsc_missing_synonyms_without_attribute.json"), "w"
+) as f:
     json.dump(no_attribute, f)
 
-with open(r"nsc_missing_synonyms_total_fails.json", "w") as f:
+with open(os.path.join(result_dir, r"nsc_missing_synonyms_total_fails.json"), "w") as f:
     json.dump(total_fails, f)
 
 #%% Add new synonym
 still_not_found = []
-nsc_numbers_to_renew = set(
-    [i["nsc"] for i in no_attribute + total_fails] + missing_synonyms
-)
 
-for nsc in tqdm(nsc_numbers_to_renew):
+for nsc in tqdm(missing_nsc_number):
     found = False
     for nsc_name in [f"nsc{nsc}", f"nsc {nsc}", f"nsc-{nsc}"]:
         response = requests.get(
@@ -134,5 +147,5 @@ for nsc in tqdm(nsc_numbers_to_renew):
     if found == False:
         still_not_found.append(nsc)
 
-with open(r"nsc_still_missing.json", "w") as f:
+with open(os.path.join(result_dir, r"nsc_still_missing.json"), "w") as f:
     json.dump(still_not_found, f)
