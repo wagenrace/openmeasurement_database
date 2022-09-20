@@ -2,11 +2,20 @@
 import json
 import os
 
-from tqdm import tqdm
 import requests
+from py2neo import Graph
+from tqdm import tqdm
 
-gi50_path = os.path.join("data", "GI50.csv")
-nsc2synonymId_path = os.path.join("data", "nsc2synom_id.csv")
+from nsc_number2lucence_query import nsc_number2lucence_query
+
+
+with open("config.json") as f:
+    config = json.load(f)
+
+# Default are for local testing
+neo4j_url = config.get("neo4jUrl", "bolt://localhost:7687")
+user = config.get("user", "neo4j")
+pswd = config.get("pswd", "password")
 
 result_dir = os.path.join("results", "completing_nscs")
 os.makedirs(result_dir, exist_ok=True)
@@ -86,3 +95,42 @@ with open(os.path.join(result_dir, r"nsc_number_2_single_synonym.json"), "w") as
 
 with open(os.path.join(result_dir, r"nsc_number_not_matched.json"), "w") as f:
     json.dump(no_pick, f)
+
+#%%
+graph = Graph(neo4j_url, auth=(user, pswd))
+
+with open(os.path.join(result_dir, r"nsc_number_not_matched.json"), "r") as f:
+    no_pick = json.load(f)
+
+common_synonyms = {}
+still_no_pick = []
+
+for nsc_number in tqdm(no_pick.keys()):
+    nsc_query = nsc_number2lucence_query(nsc_number)
+    response = graph.run(
+        """
+        CALL {
+            CALL db.index.fulltext.queryNodes('synonymsFullText', $nsc_query)
+            YIELD node, score
+            return node limit 10
+        } 
+        MATCH (node)-[:IS_ATTRIBUTE_OF]->(c:Compound)
+        WITH collect(DISTINCT c) as compounds
+        UNWIND compounds as c
+        MATCH (s:Synonym)-[:IS_ATTRIBUTE_OF]->(c:Compound)
+        WHERE ALL(compound IN compounds WHERE (s)-[:IS_ATTRIBUTE_OF]->(compound))
+        WITH DISTINCT s as s
+        RETURN s.name as name, s.pubChemSynId as synonymId 
+    """,
+        nsc_query=nsc_query,
+    ).data()
+    if len(response):
+        common_synonyms[nsc_number] = response[0]
+    else:
+        still_no_pick.append(nsc_number)
+
+with open(os.path.join(result_dir, r"nsc_number_2_common_synonyms.json"), "w") as f:
+    json.dump(common_synonyms, f)
+
+with open(os.path.join(result_dir, r"nsc_number_not_matched_2.json"), "w") as f:
+    json.dump(still_no_pick, f)
