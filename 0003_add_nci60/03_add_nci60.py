@@ -62,22 +62,26 @@ print(f"Filtered GI50 size {gi50_filtered.shape}")
 #%% Save csv in import folder
 csv_name = "gi50.csv"
 gi50_filtered.to_csv(os.path.join(neo4j_import_loc, csv_name))
-
-#%% Create all experiment nodes
 neo4j_csv_name = f"file:///{csv_name}"
 
+#%% Create all experiment nodes
+
+# Index experiment names
 graph.run(
     """
     CREATE INDEX experimentNames IF NOT EXISTS FOR (n:Experiment) ON (n.name)
     """
 )
 
+# Index user names
 graph.run(
     """
     CREATE INDEX userNames IF NOT EXISTS FOR (n:User) ON (n.name)
     """
 )
 
+# Create an experiment for every unique experiment
+# Connected it (via a synonym) to the protocol, and directly to the user
 response = graph.run(
     """
     MERGE (p:Synonym {name: "NCI-60 Screening Methodology"})-[:IS_ATTRIBUTE_OF]->(:Protocol {name: "NCI-60 Screening Methodology", url: "https://dtp.cancer.gov/discovery_development/nci-60/methodology.htm"})
@@ -92,9 +96,6 @@ response = graph.run(
 
 
 #%% Create all experiment nodes
-graph = Graph(neo4j_url, auth=(user, pswd))
-neo4j_csv_name = f"file:///{csv_name}"
-
 response = graph.run(
     """
     USING PERIODIC COMMIT 1000
