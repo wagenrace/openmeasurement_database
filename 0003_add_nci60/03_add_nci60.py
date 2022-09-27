@@ -88,8 +88,8 @@ response = graph.run(
     MERGE (nci:User {name: "National Cancer Institute"})
     WITH p, nci
     LOAD CSV WITH HEADERS FROM $csv_name AS row
-    WITH DISTINCT row.EXPID as expids, p, nci
-    MERGE (nci)-[:OWNS]->(e:Experiment {name: expids})-[:USES]->(p)
+    WITH DISTINCT row.EXPID as expid, p, nci
+    MERGE (nci)-[:OWNS]->(e:Experiment {name: expid})-[:USES]->(p)
     """,
     csv_name=neo4j_csv_name,
 ).data()
@@ -100,11 +100,15 @@ response = graph.run(
     """
     USING PERIODIC COMMIT 1000
     LOAD CSV  WITH HEADERS FROM $csv_name AS row 
-    WITH distinct row.synonym_id as id, row.synonym as synonym
-    CREATE (sym:Synonym {name: synonym, pubChemSynId: id});
-    LOAD CSV WITH HEADERS FROM $csv_name AS row
-    WITH DISTINCT row.EXPID as expids
-    CREATE (e:Experiment {name: expids})
-""",
+    MERGE (gi50:Measurement {name: "GI50"})
+    WITH row.EXPID as expid, row.CONCENTRATION_UNIT as unit, row.LOG_HI_CONCENTRATION as max_concent, row.AVERAGE as value, row.CELL_NAME_2 as cell_name, row.CHEMICAL_PUBCHEM_ID as synonym_id, gi50
+    
+    MATCH (chemical:Synonym {pubChemSynId: synonym_id})
+    MATCH (cell:CellLine {label: cell_name})
+    MATCH (exp:Experiment {name: expid})
+        
+    MERGE (cell)<-[:USES]-(cond)-[:USES]->(chemical)
+    CREATE (exp)<-[:IS_ATTRIBUTE_OF]-(cond:Condition)-[:MEASURES {value: value}]->(gi50)
+    """,
     csv_name=neo4j_csv_name,
 ).data()
