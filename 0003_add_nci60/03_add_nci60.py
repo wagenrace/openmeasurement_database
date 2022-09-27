@@ -17,6 +17,7 @@ neo4j_url = config.get("neo4jUrl", "bolt://localhost:7687")
 user = config.get("user", "neo4j")
 pswd = config.get("pswd", "password")
 neo4j_import_loc = config["neo4j_import_loc"]
+graph = Graph(neo4j_url, auth=(user, pswd))
 
 result_dir = os.path.join("results", "completing_nscs")
 os.makedirs(result_dir, exist_ok=True)
@@ -50,31 +51,59 @@ gi50["CELL_NAME_2"] = gi50["CELL_NAME"].map(cell_line_lookup)
 
 
 def nsc2chemcial_name(nsc: int):
-    return nsc_2_synonyms.get(str(nsc), {"name": None})["name"]
+    return nsc_2_synonyms.get(str(nsc), {"synonymId": None})["synonymId"]
 
 
-gi50["CHEMICAL_NAME"] = gi50["NSC"].apply(str).map(nsc2chemcial_name)
+gi50["CHEMICAL_PUBCHEM_ID"] = gi50["NSC"].apply(str).map(nsc2chemcial_name)
 
 gi50 = gi50.fillna(value=np.nan)
 gi50_filtered = gi50.dropna()
 print(f"Filtered GI50 size {gi50_filtered.shape}")
-#%% Adding them to the graph
-graph = Graph(neo4j_url, auth=(user, pswd))
+#%% Save csv in import folder
+csv_name = "gi50.csv"
+gi50_filtered.to_csv(os.path.join(neo4j_import_loc, csv_name))
 
-results = {}
-for cell_name in gi50.CELL_NAME.value_counts().keys():
-    response = graph.run(
-        f"""
-        CALL db.index.fulltext.queryNodes('cellLineFullText', "{cellline2lucence_query(cell_name)}")
-        YIELD node, score
-        return node.label as label limit 10
+#%% Create all experiment nodes
+neo4j_csv_name = f"file:///{csv_name}"
+
+graph.run(
     """
-    ).data()
-    results[cell_name] = [i["label"] for i in response]
-
-with open(r"cellline_nci60_to_chembl_raw.json", "w") as f:
-    json.dump(results, f)
-
-print(
-    "Look at the cellline_nci60_to_chembl_raw, manual replace the list with the best match and save it as cellline_nci60_to_chembl.json"
+    CREATE INDEX experimentNames IF NOT EXISTS FOR (n:Experiment) ON (n.name)
+    """
 )
+
+graph.run(
+    """
+    CREATE INDEX userNames IF NOT EXISTS FOR (n:User) ON (n.name)
+    """
+)
+
+response = graph.run(
+    """
+    MERGE (p:Synonym {name: "NCI-60 Screening Methodology"})-[:IS_ATTRIBUTE_OF]->(:Protocol {name: "NCI-60 Screening Methodology", url: "https://dtp.cancer.gov/discovery_development/nci-60/methodology.htm"})
+    MERGE (nci:User {name: "National Cancer Institute"})
+    WITH p, nci
+    LOAD CSV WITH HEADERS FROM $csv_name AS row
+    WITH DISTINCT row.EXPID as expids, p, nci
+    MERGE (nci)-[:OWNS]->(e:Experiment {name: expids})-[:USES]->(p)
+    """,
+    csv_name=neo4j_csv_name,
+).data()
+
+
+#%% Create all experiment nodes
+graph = Graph(neo4j_url, auth=(user, pswd))
+neo4j_csv_name = f"file:///{csv_name}"
+
+response = graph.run(
+    """
+    USING PERIODIC COMMIT 1000
+    LOAD CSV  WITH HEADERS FROM $csv_name AS row 
+    WITH distinct row.synonym_id as id, row.synonym as synonym
+    CREATE (sym:Synonym {name: synonym, pubChemSynId: id});
+    LOAD CSV WITH HEADERS FROM $csv_name AS row
+    WITH DISTINCT row.EXPID as expids
+    CREATE (e:Experiment {name: expids})
+""",
+    csv_name=neo4j_csv_name,
+).data()
