@@ -108,7 +108,7 @@ response = graph.run(
     MATCH (exp:Experiment {name: expid})
         
     MERGE (cell)<-[:USES]-(cond)-[:USES]->(chemical)
-    CREATE (exp)<-[:IS_ATTRIBUTE_OF]-(cond:Condition)-[:MEASURES {value: value}]->(gi50)
+    MERGE (exp)<-[:IS_ATTRIBUTE_OF]-(cond:Condition)-[:MEASURES {value: value}]->(gi50)
     """,
     csv_name=neo4j_csv_name,
 ).data()
