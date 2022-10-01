@@ -65,7 +65,6 @@ gi50_filtered.to_csv(os.path.join(neo4j_import_loc, csv_name))
 neo4j_csv_name = f"file:///{csv_name}"
 
 #%% Create all experiment nodes
-
 # Index experiment names
 graph.run(
     """
@@ -76,7 +75,7 @@ graph.run(
 # Index user names
 graph.run(
     """
-    CREATE INDEX userNames IF NOT EXISTS FOR (n:User) ON (n.name)
+    CREATE CONSTRAINT userNames IF NOT EXISTS FOR (n:User) REQUIRE n.name IS UNIQUE
     """
 )
 
@@ -107,8 +106,8 @@ response = graph.run(
     MATCH (cell:CellLine {label: cell_name})
     MATCH (exp:Experiment {name: expid})
         
-    MERGE (cell)<-[:USES]-(cond)-[:USES]->(chemical)
-    MERGE (exp)<-[:IS_ATTRIBUTE_OF]-(cond:Condition)-[:MEASURES {value: value}]->(gi50)
+    CREATE (cell)<-[:USES]-(cond:Condition)-[:USES]->(chemical)
+    CREATE (exp)<-[:IS_ATTRIBUTE_OF]-(cond)-[m:MEASURES {value: value, max_tested_concentration: max_concent}]->(gi50)
     """,
     csv_name=neo4j_csv_name,
 ).data()
