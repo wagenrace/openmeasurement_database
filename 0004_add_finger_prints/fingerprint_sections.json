@@ -1,0 +1,37 @@
+[
+  {
+    "number": 1,
+    "name": "Hierarchic Element Counts",
+    "description": "These bits test for the presence or count of individual chemical atoms represented by their atomic symbol."
+  },
+  {
+    "number": 2,
+    "name": "Rings in a canonic Extended Smallest Set of Smallest Rings (ESSSR) ring set",
+    "description": "These bits test for the presence or count of the described chemical ring system.  An ESSSR ring is any ring which does not share three consecutive atoms with any other ring in the chemical structure.  For example, naphthalene has three ESSSR rings (two phenyl fragments and the 10-membered envelope), while biphenyl will yield a count of only two ESSSR rings."
+  },
+  {
+    "number": 3,
+    "name": "Simple atom pairs",
+    "description": "These bits test for the presence of patterns of bonded atom pairs, regardless of bond order or count."
+  },
+  {
+    "number": 4,
+    "name": "Simple atom nearest neighbors",
+    "description": "These bits test for the presence of atom nearest neighbor patterns, regardless of bond order (denoted by \"~\") or count, but where bond aromaticity (denoted by \":\") is significant."
+  },
+  {
+    "number": 5,
+    "name": "Detailed atom neighborhoods",
+    "description": "These bits test for the presence of detailed atom neighborhood patterns, regardless of count, but where bond orders are specific, bond aromaticity matches both single and double bonds, and where \"-\", \"=\", and \"#\" matches a single bond, double bond, and triple bond order, respectively."
+  },
+  {
+    "number": 6,
+    "name": "Simple SMARTS patterns",
+    "description": "These bits test for the presence of simple SMARTS patterns, regardless of count, but where bond orders are specific and bond aromaticity matches both single and double bonds."
+  },
+  {
+    "number": 7,
+    "name": "Complex SMARTS patterns",
+    "description": "These bits test for the presence of complex SMARTS patterns, regardless of count, but where bond orders and bond aromaticity are specific."
+  }
+]
