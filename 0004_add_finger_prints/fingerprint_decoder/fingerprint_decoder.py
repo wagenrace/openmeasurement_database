@@ -1,10 +1,7 @@
 import base64
 
-fp = "AAADcYBAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAACAAAAACggAICAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 
-
-def decode_2d_fingerprint(fp):
-    fp = fp.encode("utf-8")
+def decode_2d_fingerprint(fp: bytes):
     decoded = base64.b64decode(fp)
     binary = "".join(["{:08b}".format(x) for x in decoded])
 
@@ -12,4 +9,4 @@ def decode_2d_fingerprint(fp):
     for idx, x in enumerate(binary[32:]):
         if x == "1":
             fp_numbers.append(idx)
-    return fp
+    return fp_numbers
