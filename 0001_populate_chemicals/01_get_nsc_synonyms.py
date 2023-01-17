@@ -66,7 +66,7 @@ while True:
             synonym_id = synonym_id_raw.replace("synonym:MD5_", "")
             number_synonyms += 1
             synonym = synonym.lower()
-            result = re.findall('"(.*)"@', synonym)
+            result = re.findall('"(.*)"', synonym)
             if result:
                 if len(result) > 1:
                     print(f"Multiple hits with {synonym}")
