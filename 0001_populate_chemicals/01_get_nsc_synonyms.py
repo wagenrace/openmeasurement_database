@@ -1,4 +1,4 @@
-#%%
+# %%
 import gzip
 from math import ceil
 import os
@@ -21,7 +21,7 @@ Make sure everything is closed (even Neo4j desktop app) before starting the firs
 with open("config.json") as f:
     config = json.load(f)
 
-port = config["port"]
+port = str(config["port"])
 user = config["user"]
 pswd = config["pswd"]
 neo4j_import_loc = config["neo4j_import_loc"]
@@ -82,12 +82,11 @@ while True:
                 print(f"Error with {synonym}")
     print("reading time", time() - start)
     number += 1
-    break
 
 print(f"total synonyms: {len(all_results)} of {number_synonyms}")
 print(f"MD5 mismatch: {wrong_md5}")
 # total synonyms: 198741219 of 198747084
-#%% Remove duplicates
+# %% Remove duplicates
 all_results.sort()
 
 # %%
@@ -114,10 +113,10 @@ for i in range(ceil(len(all_results) / split_size)):
     )
     number_files += 1
 
-#%% Save your memory
+# %% Save your memory
 del all_results
 
-#%% Adding them to the graph
+# %% Adding them to the graph
 from tqdm import tqdm
 
 graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
@@ -125,14 +124,16 @@ graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
 for i in tqdm(range(number_files)):
     graph.run(
         f"""
-        USING PERIODIC COMMIT 10000
         LOAD CSV  WITH HEADERS FROM 'file:///synonyms_{i}.csv' AS row 
         WITH distinct row.synonym_id as id, row.synonym as synonym
-        CREATE (sym:Synonym {{name: synonym, pubChemSynId: id}});
+        CALL {{
+            WITH id, synonym
+            CREATE (sym:Synonym {{name: synonym, pubChemSynId: id}})
+        }} IN TRANSACTIONS OF 10000 ROWS
     """
     ).data()
 
-#%% Add constrain
+# %% Add constrain
 graph.run(
     """
         CREATE constraint synonymId if not exists for (c:Synonym) require c.pubChemSynId is unique;
