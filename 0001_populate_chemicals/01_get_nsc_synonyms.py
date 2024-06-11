@@ -100,7 +100,7 @@ while True:
     split_size = 1e6
     number_files = 0
     prev_result = ""
-    for i in range(ceil(len(all_results) / split_size)):
+    for i in tqdm(range(ceil(len(all_results) / split_size))):
         part_results = []
         for syn in all_results[int(i * split_size) : int((i + 1) * split_size)]:
             if syn == prev_result:
@@ -115,18 +115,14 @@ while True:
             hashlib.md5(val.encode("utf-8")).hexdigest() for val in result_df["synonym"]
         ]
         result_df.to_csv(
-            os.path.join(neo4j_import_loc, f"synonyms_{i}.csv"),
+            os.path.join(neo4j_import_loc, f"synonyms.csv"),
             index=False,
         )
         number_files += 1
 
-    # Save your memory
-    del all_results
-
-    for i in tqdm(range(number_files)):
         graph.run(
             f"""
-            LOAD CSV  WITH HEADERS FROM 'file:///synonyms_{i}.csv' AS row 
+            LOAD CSV  WITH HEADERS FROM 'file:///synonyms.csv' AS row 
             WITH distinct row.synonym_id as id, row.synonym as synonym
             CALL {{
                 WITH id, synonym
@@ -135,3 +131,5 @@ while True:
             }} IN TRANSACTIONS OF 10000 ROWS
         """
         ).data()
+
+    del all_results
