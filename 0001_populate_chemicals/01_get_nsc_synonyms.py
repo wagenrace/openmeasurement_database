@@ -1,17 +1,17 @@
 # %%
 import gzip
-from math import ceil
+import hashlib
+import json
 import os
 import re
-import json
 import urllib.request
+from math import ceil
 from time import time
-import hashlib
 
 import pandas as pd
-from py2neo import Graph
-
 from encode_for_neo4j import encode2neo4j
+from py2neo import Graph
+from tqdm import tqdm
 
 """
 This code will add all the synonyms to the neo4j graph database.
@@ -35,11 +35,18 @@ number = 1
 number_synonyms = 0
 synonyms_per_file = 1e6
 wrong_md5 = 0
-all_results = []
+
+graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
+graph.run(
+    """
+        CREATE constraint synonymId if not exists for (c:Synonym) require c.pubChemSynId is unique;
+    """
+)
+
 while True:
+    all_results = []
 
     # Get
-
     file_name = f"pc_synonym_value_{str(number).zfill(6)}.ttl.gz"
     print(file_name)
     gz_file_loc = os.path.join(temp_dir, file_name)
@@ -83,59 +90,48 @@ while True:
     print("reading time", time() - start)
     number += 1
 
-print(f"total synonyms: {len(all_results)} of {number_synonyms}")
-print(f"MD5 mismatch: {wrong_md5}")
-# total synonyms: 198741219 of 198747084
-# %% Remove duplicates
-all_results.sort()
+    print(f"total synonyms: {len(all_results)} of {number_synonyms}")
+    print(f"MD5 mismatch: {wrong_md5}")
+    # total synonyms: 198741219 of 198747084
+    # %% Remove duplicates
+    all_results.sort()
 
-# %%
-split_size = 1e6
-number_files = 0
-prev_result = ""
-for i in range(ceil(len(all_results) / split_size)):
-    part_results = []
-    for syn in all_results[int(i * split_size) : int((i + 1) * split_size)]:
-        if syn == prev_result:
-            continue
-        part_results.append(syn)
-        prev_result = syn
-    result_df = pd.DataFrame(
-        map(encode2neo4j, part_results),
-        columns=["synonym"],
-    )
-    result_df["synonym_id"] = [
-        hashlib.md5(val.encode("utf-8")).hexdigest() for val in result_df["synonym"]
-    ]
-    result_df.to_csv(
-        os.path.join(neo4j_import_loc, f"synonyms_{i}.csv"),
-        index=False,
-    )
-    number_files += 1
+    # %%
+    split_size = 1e6
+    number_files = 0
+    prev_result = ""
+    for i in range(ceil(len(all_results) / split_size)):
+        part_results = []
+        for syn in all_results[int(i * split_size) : int((i + 1) * split_size)]:
+            if syn == prev_result:
+                continue
+            part_results.append(syn)
+            prev_result = syn
+        result_df = pd.DataFrame(
+            map(encode2neo4j, part_results),
+            columns=["synonym"],
+        )
+        result_df["synonym_id"] = [
+            hashlib.md5(val.encode("utf-8")).hexdigest() for val in result_df["synonym"]
+        ]
+        result_df.to_csv(
+            os.path.join(neo4j_import_loc, f"synonyms_{i}.csv"),
+            index=False,
+        )
+        number_files += 1
 
-# %% Save your memory
-del all_results
+    # Save your memory
+    del all_results
 
-# %% Adding them to the graph
-from tqdm import tqdm
-
-graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
-
-for i in tqdm(range(number_files)):
-    graph.run(
-        f"""
-        LOAD CSV  WITH HEADERS FROM 'file:///synonyms_{i}.csv' AS row 
-        WITH distinct row.synonym_id as id, row.synonym as synonym
-        CALL {{
-            WITH id, synonym
-            CREATE (sym:Synonym {{name: synonym, pubChemSynId: id}})
-        }} IN TRANSACTIONS OF 10000 ROWS
-    """
-    ).data()
-
-# %% Add constrain
-graph.run(
-    """
-        CREATE constraint synonymId if not exists for (c:Synonym) require c.pubChemSynId is unique;
-    """
-)
+    for i in tqdm(range(number_files)):
+        graph.run(
+            f"""
+            LOAD CSV  WITH HEADERS FROM 'file:///synonyms_{i}.csv' AS row 
+            WITH distinct row.synonym_id as id, row.synonym as synonym
+            CALL {{
+                WITH id, synonym
+                MERGE (sym:Synonym {{pubChemSynId: id}})
+                SET sym.name = synonym
+            }} IN TRANSACTIONS OF 10000 ROWS
+        """
+        ).data()
