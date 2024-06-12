@@ -1,4 +1,4 @@
-#%%
+# %%
 import gzip
 import os
 import re
@@ -21,6 +21,7 @@ neo4j_import_loc = config["neo4j_import_loc"]
 
 graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
 
+
 def get_current_connections():
     current_connection = graph.run(
         """
@@ -28,6 +29,7 @@ def get_current_connections():
         """
     ).data()[0]["count(r)"]
     return current_connection
+
 
 current_connection = get_current_connections()
 temp_dir = "temp"
@@ -44,11 +46,14 @@ def add_results(result_list):
 
     graph.run(
         """
-        USING PERIODIC COMMIT 5000
         LOAD CSV  WITH HEADERS FROM 'file:///synom_id2nsc.csv' AS row 
-        MATCH (sym:Synonym {pubChemSynId: row.synonymId})
-        MATCH (comp:Compound {pubChemCompId: row.compoundId})
-        MERGE (sym)-[:IS_ATTRIBUTE_OF]->(comp);
+        WITH row.compoundId as comp_id, row.synonymId as sym_id
+        CALL{
+            WITH comp_id, sym_id
+            MATCH (sym:Synonym {pubChemSynId: sym_id})
+            MATCH (comp:Compound {pubChemCompId: comp_id})
+            MERGE (sym)-[:IS_ATTRIBUTE_OF]->(comp)
+        }
     """
     ).data()
 

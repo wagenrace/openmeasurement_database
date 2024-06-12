@@ -1,16 +1,16 @@
-#%%
+# %%
 import gzip
-from math import ceil
+import json
 import os
 import re
-import json
 import urllib.request
+from math import ceil
 from time import time
 
 import pandas as pd
-from py2neo import Graph
-
 from encode_for_neo4j import encode2neo4j
+from py2neo import Graph
+from tqdm import tqdm
 
 with open("config.json") as f:
     config = json.load(f)
@@ -22,6 +22,14 @@ neo4j_import_loc = config["neo4j_import_loc"]
 
 graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
 
+# %% Create compound constrain
+response = graph.run(
+    f"""
+        CREATE constraint compoundId if not exists for (c:Compound) require c.pubChemCompId is unique;
+    """
+).data()
+print(response)
+
 temp_dir = "temp"
 os.makedirs(temp_dir, exist_ok=True)
 
@@ -29,8 +37,8 @@ os.makedirs(temp_dir, exist_ok=True)
 number = 1
 synonyms_per_file = 1e6
 
-unique_results = set()
 while True:
+    unique_results = set()
     result_list = []
     # Get
 
@@ -74,38 +82,29 @@ while True:
 
     print(f"total compounds: {len(unique_results)}\n")
 
-unique_results = list(unique_results)
-#%%
-split_size = 1e6
-number_files = 0
-for i in range(ceil(len(unique_results) / split_size)):
-    result_df = pd.DataFrame(
-        unique_results[int(i * split_size) : int((i + 1) * split_size)],
-        columns=["compound"],
-    )
-    result_df = result_df.drop_duplicates()
-    result_df.to_csv(
-        os.path.join(neo4j_import_loc, f"compounds_{i}.csv"),
-        index=False,
-    )
-    number_files += 1
+    unique_results = list(unique_results)
+    # %%
+    split_size = 1e6
+    number_files = 0
+    for i in tqdm(range(ceil(len(unique_results) / split_size))):
+        result_df = pd.DataFrame(
+            unique_results[int(i * split_size) : int((i + 1) * split_size)],
+            columns=["compound"],
+        )
+        result_df = result_df.drop_duplicates()
+        result_df.to_csv(
+            os.path.join(neo4j_import_loc, f"compounds.csv"),
+            index=False,
+        )
+        number_files += 1
 
-del unique_results
-
-#%%
-for i in range(number_files):
-    graph.run(
-        f"""
-        USING PERIODIC COMMIT 10000
-        LOAD CSV  WITH HEADERS FROM 'file:///compounds_{i}.csv' AS row
-        CREATE (comp:Compound {{pubChemCompId: row.compound}});
-    """
-    ).data()
-
-#%%
-response = graph.run(
-        f"""
-        CREATE constraint compoundId if not exists for (c:Compound) require c.pubChemCompId is unique;
-    """
-    ).data()
-print(response)
+        graph.run(
+            f"""
+            LOAD CSV  WITH HEADERS FROM 'file:///compounds.csv' AS row
+            WITH row.compound as comp_id
+            CALL {{
+                WITH comp_id
+                MERGE (comp:Compound {{pubChemCompId: comp_id}})
+            }} IN TRANSACTIONS OF 10000 ROWS
+        """
+        ).data()
