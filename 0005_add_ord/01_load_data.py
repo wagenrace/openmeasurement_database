@@ -7,13 +7,6 @@ from google.protobuf.json_format import MessageToJson
 
 from pathlib import Path
 
-data_path = (
-    Path("ord-data")
-    / "data"
-    / "00"
-    / "ord_dataset-00005539a1e04c809a9a78647bea649c.pb.gz"
-)
-
 data_path = Path("ord-data") / "data"
 temp_folder = Path("temp")
 temp_folder.mkdir(exist_ok=True)
