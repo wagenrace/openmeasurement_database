@@ -26,3 +26,23 @@ python 01_get_nsc_synonyms.py
 python 02_get_compounds.py
 python 03_connect_synonyms2compounds.py
 ```
+This database has a total size of 65GB.
+
+# Canonical SMILES
+
+Canonical SMILES is an ASCII like string to represent the molecule structure. For examples ethanol is CCO.
+To add this run this:
+
+```bash
+python 04_add_can_smiles.py
+```
+This will increase the database with +15.6 GB
+
+# InChI
+
+InChI is a unique id calculated based on the molecule structure.
+
+```bash
+python 05_add_InChI.py 
+```
+This will increase the database with +40GB, and an extra 9GB if you want it indexed.
