@@ -45,4 +45,4 @@ InChI is a unique id calculated based on the molecule structure.
 ```bash
 python 05_add_InChI.py 
 ```
-This will increase the database with +40GB
+This will increase the database with +40GB, and an extra 9GB if you want it indexed.

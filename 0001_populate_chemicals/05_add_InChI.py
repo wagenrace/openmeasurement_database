@@ -90,3 +90,10 @@ while True:
                 result_list = []
     print("reading time of gz", time() - start)
     number += 1
+
+# %% Add index for easier finding
+graph.run(
+    """
+        CREATE INDEX compoundInChI FOR (n:Compound) ON (n.inChI)
+    """
+)
