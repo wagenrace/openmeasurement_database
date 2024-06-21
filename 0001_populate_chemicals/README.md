@@ -36,4 +36,13 @@ To add this run this:
 ```bash
 python 04_add_can_smiles.py
 ```
-This will increase the database with 15.6 GB
+This will increase the database with +15.6 GB
+
+# InChI
+
+InChI is a unique id calculated based on the molecule structure.
+
+```bash
+python 05_add_InChI.py 
+```
+This will increase the database with +40GB

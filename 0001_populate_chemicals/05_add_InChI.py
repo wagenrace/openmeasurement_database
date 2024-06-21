@@ -7,7 +7,6 @@ from time import time
 
 import pandas as pd
 from encode_for_neo4j import encode2neo4j
-
 from py2neo import Graph
 
 with open("config.json") as f:
@@ -28,7 +27,6 @@ number = 1
 
 while True:
     result_list = []
-    # Get
 
     file_name = f"pc_descr_InChI_value_{str(number).zfill(6)}.ttl.gz"
     print(file_name)
@@ -61,7 +59,7 @@ while True:
                 print(f"No compounds found within: {raw_compounds}")
                 continue
             compound = "compound:" + raw_compounds[0]
-            in_chi = re.findall('InChI=(.*)"@en .\n', part3)
+            in_chi = re.findall('(InChI=.*)"@en .\n', part3)
 
             if len(in_chi) > 1:
                 print(f"Multiple InChI found within: {in_chi}")
@@ -74,23 +72,21 @@ while True:
 
             result_list.append({"inChI": clean_in_chi, "pubChemCompId": compound})
 
-            if len(result_list) >= 1000:
+            if len(result_list) >= 10000:
                 result_pd = pd.DataFrame(result_list)
                 result_pd.to_csv(
                     os.path.join(neo4j_import_loc, f"inChI.csv"),
                     index=False,
                 )
-                break
-        break
-    #             graph.run(
-    #                 f"""
-    #                 LOAD CSV  WITH HEADERS FROM 'file:///inChI.csv' AS row
-    #                 WITH row.pubChemCompId as comp_id, row.inChI as smiles
-    #                 MATCH (comp:Compound {{pubChemCompId: comp_id}})
-    #                 SET comp.inChI = smiles
-    #             """
-    #             ).data()
-    #             print(f"Added an other {len(result_list)}")
-    #             result_list = []
-    # print("reading time of gz", time() - start)
-    # number += 1
+                graph.run(
+                    f"""
+                    LOAD CSV  WITH HEADERS FROM 'file:///inChI.csv' AS row
+                    WITH row.pubChemCompId as comp_id, row.inChI as inchi
+                    MATCH (comp:Compound {{pubChemCompId: comp_id}})
+                    SET comp.inChI = inchi
+                """
+                ).data()
+                print(f"Added an other {len(result_list)}")
+                result_list = []
+    print("reading time of gz", time() - start)
+    number += 1
