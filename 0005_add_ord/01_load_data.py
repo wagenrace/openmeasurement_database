@@ -4,6 +4,7 @@ import json
 from ord_schema.message_helpers import load_message
 from ord_schema.proto import dataset_pb2
 from google.protobuf.json_format import MessageToJson
+from tqdm import tqdm
 
 from pathlib import Path
 
@@ -11,7 +12,10 @@ data_path = Path("ord-data") / "data"
 temp_folder = Path("temp")
 temp_folder.mkdir(exist_ok=True)
 
-for gz_path in data_path.glob("*/*.pb.gz"):
+# This will add 2,274,399 reactions
+count = 0
+all_gz_paths = [i for i in data_path.glob("*/*.pb.gz")]
+for gz_path in tqdm(all_gz_paths):
     json_name = gz_path.name.replace(".pb.gz", ".json")
     dataset = load_message(
         str(gz_path),
@@ -33,6 +37,7 @@ for gz_path in data_path.glob("*/*.pb.gz"):
                 ensure_ascii=True,
             )
         )
+        json_name = f"{rxn_json['reaction_id']}.json"
 
         with open(temp_folder / json_name, "w") as fp:
             json.dump(rxn_json, fp, indent=4)
