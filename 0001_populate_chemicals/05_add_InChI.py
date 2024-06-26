@@ -24,6 +24,7 @@ os.makedirs(temp_dir, exist_ok=True)
 
 
 number = 1
+total_inchi_added = 0
 
 while True:
     result_list = []
@@ -86,7 +87,8 @@ while True:
                     SET comp.inChI = inchi
                 """
                 ).data()
-                print(f"Added an other {len(result_list)}")
+                total_inchi_added += len(result_list)
+                print(f"Added {total_inchi_added} InChI", end="\r")
                 result_list = []
     print("reading time of gz", time() - start)
     number += 1
