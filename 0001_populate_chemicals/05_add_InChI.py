@@ -91,6 +91,8 @@ while True:
                 print(f"Added {total_inchi_added} InChI", end="\r")
                 result_list = []
     print("reading time of gz", time() - start)
+    print(f"Total InChI at the moment: {total_inchi_added}")
+
     number += 1
 
 # %% Add index for easier finding
