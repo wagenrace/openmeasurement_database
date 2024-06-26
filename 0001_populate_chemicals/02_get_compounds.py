@@ -35,23 +35,23 @@ os.makedirs(temp_dir, exist_ok=True)
 
 
 number = 1
-synonyms_per_file = 1e6
 
 while True:
-    unique_results = set()
     result_list = []
-    # Get
 
     file_name = f"pc_synonym2compound_{str(number).zfill(6)}.ttl.gz"
     print(file_name)
     gz_file_loc = os.path.join(temp_dir, file_name)
-    if not os.path.exists(gz_file_loc):
+    if os.path.exists(gz_file_loc):
+        print(f"{gz_file_loc} already exists")
+    else:
         start = time()
         download_url = rf"https://ftp.ncbi.nlm.nih.gov/pubchem/RDF/synonym/{file_name}"
         print("download: ", download_url)
         try:
             urllib.request.urlretrieve(download_url, gz_file_loc)
         except:
+            print(f"Could not download {download_url}")
             break
         print("download time", time() - start)
 
@@ -74,21 +74,15 @@ while True:
             else:
                 print(f"Error with {compound}")
 
-            if len(result_list) > 1000:
-                unique_results.update(set(result_list))
-                result_list = []
     print("reading time", time() - start)
-    number += 1
 
-    print(f"total compounds: {len(unique_results)}\n")
+    print(f"new compounds: {len(result_list)}\n")
 
-    unique_results = list(unique_results)
-    # %%
     split_size = 1e6
     number_files = 0
-    for i in tqdm(range(ceil(len(unique_results) / split_size))):
+    for i in tqdm(range(ceil(len(result_list) / split_size))):
         result_df = pd.DataFrame(
-            unique_results[int(i * split_size) : int((i + 1) * split_size)],
+            result_list[int(i * split_size) : int((i + 1) * split_size)],
             columns=["compound"],
         )
         result_df = result_df.drop_duplicates()
@@ -108,3 +102,5 @@ while True:
             }} IN TRANSACTIONS OF 10000 ROWS
         """
         ).data()
+    del result_list
+    number += 1
