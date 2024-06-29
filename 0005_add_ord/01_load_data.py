@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+from typing import List
 from uuid import uuid4
 
 from google.protobuf.json_format import MessageToJson
@@ -10,6 +11,8 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto.reaction_pb2 import CompoundIdentifier
 from py2neo import Graph
 from tqdm import tqdm
+
+from ord_types import ReactionComponent
 
 with open("config.json") as f:
     config = json.load(f)
@@ -28,11 +31,14 @@ data_path = Path("ord-data") / "data"
 temp_folder = Path("temp")
 temp_folder.mkdir(exist_ok=True)
 
+
 def save_error(rxn_json, error_type):
     reaction_id = rxn_json.get("reaction_id", f"no_id_{uuid4()}")
     json_path = temp_folder / "error" / error_type / f"{reaction_id}.json"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_bytes(json.dumps(rxn_json, indent=2).encode())
+
+
 # This will add 2,274,399 reactions
 count = 0
 total_errors = 0
@@ -66,20 +72,33 @@ for gz_path in tqdm(all_gz_paths):
 
         # Inputs are required
         inputs = reaction.inputs
+        input_components: List[ReactionComponent] = []
 
         # Identifiers need to have type InChI
         inputs_identifiers_are_inchi = True
-        for input_type in inputs.keys():
-            components = inputs[input_type].components
+        for input_state in inputs.keys():
+            components = inputs[input_state].components
             for component in components:
-                if not any(
-                    identifier.type in [CompoundIdentifier.INCHI, CompoundIdentifier.SMILES]
-                    for identifier in component.identifiers
-                ):
+                for identifier in component.identifiers:
+                    if identifier.type == CompoundIdentifier.INCHI:
+                        inchi = identifier.value
+                if not inchi:
                     save_error(rxn_json, "inputs_identifiers")
                     total_errors += 1
                     inputs_identifiers_are_inchi = False
                     break
+
+                input_components.append(
+                    ReactionComponent(
+                        state=input_state,
+                        inchi=inchi,
+                        amount=str(component.amount),
+                        reaction_role=component.reaction_role,
+                        input=True,
+                        reaction_id=reaction_id,
+                    )
+                )
+
             if not inputs_identifiers_are_inchi:
                 break
         if not inputs_identifiers_are_inchi:
@@ -87,6 +106,39 @@ for gz_path in tqdm(all_gz_paths):
 
         # outcomes are required
         outcomes = reaction.outcomes
+        outcome_components: List[ReactionComponent] = []
+
+        # Identifiers need to have type InChI
+        outcomes_identifiers_are_inchi = True
+        for outcome in outcomes:
+            components = outcome.products
+            for component in components:
+                for identifier in component.identifiers:
+                    if identifier.type == CompoundIdentifier.INCHI:
+                        inchi = identifier.value
+                if not inchi:
+                    save_error(rxn_json, "outcomes_identifiers")
+                    total_errors += 1
+                    outcomes_identifiers_are_inchi = False
+                    break
+
+                outcome_components.append(
+                    ReactionComponent(
+                        state="product",
+                        inchi=inchi,
+                        amount="",
+                        reaction_role=component.reaction_role,
+                        input=False,
+                        reaction_id=reaction_id,
+                    )
+                )
+
+            if not outcomes_identifiers_are_inchi:
+                break
+
+        # outcomes are required
+        outcomes = reaction.outcomes
+    #     break
     # break
 print(f"Total errors: {total_errors}")
 print(f"Total reactions: {count}")
