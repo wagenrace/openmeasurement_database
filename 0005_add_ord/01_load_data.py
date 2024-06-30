@@ -9,6 +9,7 @@ from google.protobuf.json_format import MessageToJson
 from ord_schema.message_helpers import load_message
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto.reaction_pb2 import CompoundIdentifier
+import pandas as pd
 from py2neo import Graph
 from tqdm import tqdm
 
@@ -23,13 +24,16 @@ os.makedirs(temp_dir, exist_ok=True)
 port = config["port"]
 user = config["user"]
 pswd = config["pswd"]
-neo4j_import_loc = config["neo4j_import_loc"]
+neo4j_import_loc = Path(config["neo4j_import_loc"])
 
 graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
 
 data_path = Path("ord-data") / "data"
 temp_folder = Path("temp")
 temp_folder.mkdir(exist_ok=True)
+
+all_reactions = []
+all_reaction_components = []
 
 
 def save_error(rxn_json, error_type):
@@ -136,9 +140,25 @@ for gz_path in tqdm(all_gz_paths):
             if not outcomes_identifiers_are_inchi:
                 break
 
-        # outcomes are required
-        outcomes = reaction.outcomes
-    #     break
-    # break
+        # Put all on the list
+        all_reactions.append({"reaction_id": reaction_id})
+        for i in input_components:
+            all_reaction_components.append(dict(i))
+        for i in outcome_components:
+            all_reaction_components.append(dict(i))
+        break
+    break
+
 print(f"Total errors: {total_errors}")
 print(f"Total reactions: {count}")
+
+pd.DataFrame(all_reaction_components).to_csv(
+    neo4j_import_loc / "reaction_components.csv"
+)
+pd.DataFrame(all_reactions).to_csv(neo4j_import_loc / "reaction.csv")
+
+response = graph.run(
+    f"""
+        CREATE constraint reactionId if not exists for (c:Compound) require c.pubChemCompId is unique;
+    """
+)
