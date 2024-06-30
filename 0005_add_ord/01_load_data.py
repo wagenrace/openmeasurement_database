@@ -1,4 +1,4 @@
-# import requirements
+# %% import requirements
 import json
 import os
 from pathlib import Path
@@ -26,12 +26,11 @@ user = config["user"]
 pswd = config["pswd"]
 neo4j_import_loc = Path(config["neo4j_import_loc"])
 
-graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
-
 data_path = Path("ord-data") / "data"
 temp_folder = Path("temp")
 temp_folder.mkdir(exist_ok=True)
 
+# %% get reactions
 all_reactions = []
 all_incoming_components = []
 all_outgoing_components = []
@@ -84,6 +83,7 @@ for gz_path in tqdm(all_gz_paths):
         for input_state in inputs.keys():
             components = inputs[input_state].components
             for component in components:
+                component_json = json.loads(MessageToJson(component))
                 for identifier in component.identifiers:
                     if identifier.type == CompoundIdentifier.INCHI:
                         inchi = identifier.value
@@ -98,8 +98,7 @@ for gz_path in tqdm(all_gz_paths):
                         state=input_state,
                         inchi=inchi,
                         amount=str(component.amount),
-                        reaction_role=component.reaction_role,
-                        input=True,
+                        reaction_role=component_json["reaction_role"],
                         reaction_id=reaction_id,
                     )
                 )
@@ -118,6 +117,7 @@ for gz_path in tqdm(all_gz_paths):
         for outcome in outcomes:
             components = outcome.products
             for component in components:
+                component_json = json.loads(MessageToJson(component))
                 for identifier in component.identifiers:
                     if identifier.type == CompoundIdentifier.INCHI:
                         inchi = identifier.value
@@ -132,8 +132,7 @@ for gz_path in tqdm(all_gz_paths):
                         state="product",
                         inchi=inchi,
                         amount="",
-                        reaction_role=component.reaction_role,
-                        input=False,
+                        reaction_role=component_json["reaction_role"],
                         reaction_id=reaction_id,
                     )
                 )
@@ -151,33 +150,39 @@ for gz_path in tqdm(all_gz_paths):
 print(f"Total errors: {total_errors}")
 print(f"Total reactions: {count}")
 
-# %%
+# %% write results to CSV
 pd.DataFrame(all_incoming_components).to_csv(
-    neo4j_import_loc / "reaction_input_components.csv"
+    neo4j_import_loc / "reaction_input_components.csv", index=False
 )
-pd.DataFrame(all_incoming_components).to_csv(
-    neo4j_import_loc / "reaction_output_components.csv"
+pd.DataFrame(all_outgoing_components).to_csv(
+    neo4j_import_loc / "reaction_output_components.csv", index=False
 )
-pd.DataFrame(all_reactions).to_csv(neo4j_import_loc / "reaction.csv")
+pd.DataFrame(all_reactions).to_csv(neo4j_import_loc / "reaction.csv", index=False)
 
+# %% Connect with database
+graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
+
+# %%
 response = graph.run(
     f"""
         CREATE constraint reactionId if not exists for (c:Reaction) require c.reactionId is unique;
     """
-)
+).data()
+print(response)
 
-graph.run(
+response = graph.run(
     """
-            LOAD CSV  WITH HEADERS FROM 'file:///reaction.csv' AS row
-            WITH row.reaction_id as r_id
-            CALL {
-                WITH r_id
-                MERGE (n:Reaction {reactionId: r_id})
-            } IN TRANSACTIONS OF 10000 ROWS
+LOAD CSV  WITH HEADERS FROM 'file:///reaction.csv' AS row
+WITH row.reaction_id as r_id
+CALL {
+    WITH r_id
+    MERGE (n:Reaction {reactionId: r_id})
+} IN TRANSACTIONS OF 1000 ROWS
         """
-)
+).data()
+print(response)
 
-graph.run(
+response = graph.run(
     """
         LOAD CSV  WITH HEADERS FROM 'file:///reaction_input_components.csv' AS row 
         WITH row.reaction_id as r_id, row.inchi as inchi, row.reaction_role as role
@@ -186,11 +191,12 @@ graph.run(
             MATCH (r:Reaction {reactionId: r_id})
             MATCH (c:Compound {inChI: inchi})
             MERGE (c)-[:INPUT {role: role}]->(r)
-        } IN TRANSACTIONS OF 10000 ROWS
+        } IN TRANSACTIONS OF 1000 ROWS
     """
-)
+).data()
+print(response)
 
-graph.run(
+response = graph.run(
     """
         LOAD CSV  WITH HEADERS FROM 'file:///reaction_output_components.csv' AS row 
         WITH row.reaction_id as r_id, row.inchi as inchi
@@ -199,7 +205,8 @@ graph.run(
             MATCH (r:Reaction {reactionId: r_id})
             MATCH (c:Compound {inChI: inchi})
             MERGE (r)-[:OUTPUT]->(c)
-        } IN TRANSACTIONS OF 10000 ROWS
+        } IN TRANSACTIONS OF 1000 ROWS
     """
-)
+).data()
+print(response)
 # %%

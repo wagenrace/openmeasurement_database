@@ -7,7 +7,6 @@ class ReactionComponent:
     inchi: str
     amount: str
     reaction_role: str
-    input: bool
     reaction_id: str
 
     def __iter__(self):
@@ -15,5 +14,4 @@ class ReactionComponent:
         yield "inchi", self.inchi
         yield "amount", self.amount
         yield "reaction_role", self.reaction_role
-        yield "input", self.input
         yield "reaction_id", self.reaction_id
