@@ -33,7 +33,8 @@ temp_folder = Path("temp")
 temp_folder.mkdir(exist_ok=True)
 
 all_reactions = []
-all_reaction_components = []
+all_incoming_components = []
+all_outgoing_components = []
 
 
 def save_error(rxn_json, error_type):
@@ -143,22 +144,64 @@ for gz_path in tqdm(all_gz_paths):
         # Put all on the list
         all_reactions.append({"reaction_id": reaction_id})
         for i in input_components:
-            all_reaction_components.append(dict(i))
+            all_incoming_components.append(dict(i))
         for i in outcome_components:
-            all_reaction_components.append(dict(i))
+            all_outgoing_components.append(dict(i))
         break
     break
 
 print(f"Total errors: {total_errors}")
 print(f"Total reactions: {count}")
 
-pd.DataFrame(all_reaction_components).to_csv(
-    neo4j_import_loc / "reaction_components.csv"
+# %%
+pd.DataFrame(all_incoming_components).to_csv(
+    neo4j_import_loc / "reaction_input_components.csv"
+)
+pd.DataFrame(all_incoming_components).to_csv(
+    neo4j_import_loc / "reaction_output_components.csv"
 )
 pd.DataFrame(all_reactions).to_csv(neo4j_import_loc / "reaction.csv")
 
 response = graph.run(
     f"""
-        CREATE constraint reactionId if not exists for (c:Compound) require c.pubChemCompId is unique;
+        CREATE constraint reactionId if not exists for (c:Reaction) require c.reactionId is unique;
     """
 )
+
+graph.run(
+    """
+            LOAD CSV  WITH HEADERS FROM 'file:///reaction.csv' AS row
+            WITH row.reaction_id as r_id
+            CALL {
+                WITH r_id
+                MERGE (n:Reaction {reactionId: r_id})
+            } IN TRANSACTIONS OF 10000 ROWS
+        """
+)
+
+graph.run(
+    """
+        LOAD CSV  WITH HEADERS FROM 'file:///reaction_input_components.csv' AS row 
+        WITH row.reaction_id as r_id, row.inchi as inchi
+        CALL{
+            WITH r_id, inchi
+            MATCH (r:Reaction {reactionId: r_id})
+            MATCH (c:Compound {inChI: inchi})
+            MERGE (c)-[:INPUT]->(r)
+        } IN TRANSACTIONS OF 10000 ROWS
+    """
+)
+
+graph.run(
+    """
+        LOAD CSV  WITH HEADERS FROM 'file:///reaction_output_components.csv' AS row 
+        WITH row.reaction_id as r_id, row.inchi as inchi
+        CALL{
+            WITH r_id, inchi
+            MATCH (r:Reaction {reactionId: r_id})
+            MATCH (c:Compound {inChI: inchi})
+            MERGE (r)-[:OUTPUT]->(c)
+        } IN TRANSACTIONS OF 10000 ROWS
+    """
+)
+# %%
