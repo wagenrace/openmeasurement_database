@@ -147,8 +147,6 @@ for gz_path in tqdm(all_gz_paths):
             all_incoming_components.append(dict(i))
         for i in outcome_components:
             all_outgoing_components.append(dict(i))
-        break
-    break
 
 print(f"Total errors: {total_errors}")
 print(f"Total reactions: {count}")
@@ -182,12 +180,12 @@ graph.run(
 graph.run(
     """
         LOAD CSV  WITH HEADERS FROM 'file:///reaction_input_components.csv' AS row 
-        WITH row.reaction_id as r_id, row.inchi as inchi
+        WITH row.reaction_id as r_id, row.inchi as inchi, row.reaction_role as role
         CALL{
-            WITH r_id, inchi
+            WITH r_id, inchi, role
             MATCH (r:Reaction {reactionId: r_id})
             MATCH (c:Compound {inChI: inchi})
-            MERGE (c)-[:INPUT]->(r)
+            MERGE (c)-[:INPUT {role: role}]->(r)
         } IN TRANSACTIONS OF 10000 ROWS
     """
 )
