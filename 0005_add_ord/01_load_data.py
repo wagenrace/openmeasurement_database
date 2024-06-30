@@ -98,7 +98,7 @@ for gz_path in tqdm(all_gz_paths):
                         state=input_state,
                         inchi=inchi,
                         amount=str(component.amount),
-                        reaction_role=component_json["reactionRole"],
+                        reaction_role=component_json.get("reactionRole", "UNKNOWN"),
                         reaction_id=reaction_id,
                     )
                 )
