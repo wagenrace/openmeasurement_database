@@ -98,7 +98,7 @@ for gz_path in tqdm(all_gz_paths):
                         state=input_state,
                         inchi=inchi,
                         amount=str(component.amount),
-                        reaction_role=component_json["reaction_role"],
+                        reaction_role=component_json["reactionRole"],
                         reaction_id=reaction_id,
                     )
                 )
@@ -132,7 +132,7 @@ for gz_path in tqdm(all_gz_paths):
                         state="product",
                         inchi=inchi,
                         amount="",
-                        reaction_role=component_json["reaction_role"],
+                        reaction_role="PRODUCT",
                         reaction_id=reaction_id,
                     )
                 )
