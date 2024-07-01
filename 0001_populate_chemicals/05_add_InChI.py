@@ -80,13 +80,13 @@ while True:
                     index=False,
                 )
                 graph.run(
-                    f"""
+                    """
                     LOAD CSV  WITH HEADERS FROM 'file:///inChI.csv' AS row
                     WITH row.pubChemCompId as comp_id, row.inChI as inchi
-                    MATCH (comp:Compound {{pubChemCompId: comp_id}})
+                    MERGE (comp:Compound {pubChemCompId: comp_id})
                     SET comp.inChI = inchi
                 """
-                ).data()
+                )
                 total_inchi_added += len(result_list)
                 print(f"Added {total_inchi_added} InChI", end="\r")
                 result_list = []
@@ -95,6 +95,20 @@ while True:
 
     number += 1
 
+
+result_pd = pd.DataFrame(result_list)
+result_pd.to_csv(
+    os.path.join(neo4j_import_loc, f"inChI.csv"),
+    index=False,
+)
+graph.run(
+    f"""
+    LOAD CSV  WITH HEADERS FROM 'file:///inChI.csv' AS row
+    WITH row.pubChemCompId as comp_id, row.inChI as inchi
+    MERGE (comp:Compound {{pubChemCompId: comp_id}})
+    SET comp.inChI = inchi
+"""
+)
 # %% Add index for easier finding
 graph.run(
     """
