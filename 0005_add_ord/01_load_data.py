@@ -82,7 +82,7 @@ def upload_incoming_components(incoming_components):
             CALL{
                 WITH r_id, inchi, role
                 MATCH (r:Reaction {reactionId: r_id})
-                MATCH (c:Compound {inChI: inchi})
+                MERGE (c:Compound {inChI: inchi})
                 MERGE (c)-[:INPUT {role: role}]->(r)
             } IN TRANSACTIONS OF 1000 ROWS
         """
@@ -100,7 +100,7 @@ def upload_outgoing_components(outgoing_components):
             CALL{
                 WITH r_id, inchi
                 MATCH (r:Reaction {reactionId: r_id})
-                MATCH (c:Compound {inChI: inchi})
+                MERGE (c:Compound {inChI: inchi})
                 MERGE (r)-[:OUTPUT]->(c)
             } IN TRANSACTIONS OF 1000 ROWS
         """
