@@ -44,11 +44,16 @@ def save_error(rxn_json, error_type):
 
 
 graph = Graph("bolt://localhost:" + port, auth=(user, pswd))
-response = graph.run(
+graph.run(
     f"""
         CREATE constraint reactionId if not exists for (c:Reaction) require c.reactionId is unique;
     """
-).data()
+)
+graph.run(
+    """
+        CREATE INDEX compoundInChI if not exists FOR (n:Compound) ON (n.inChI)
+    """
+)
 
 
 def upload_reactions(reactions):
@@ -143,6 +148,7 @@ for gz_path in tqdm(all_gz_paths):
             components = inputs[input_state].components
             for component in components:
                 component_json = json.loads(MessageToJson(component))
+                inchi = None
                 for identifier in component.identifiers:
                     if identifier.type == CompoundIdentifier.INCHI:
                         inchi = identifier.value
