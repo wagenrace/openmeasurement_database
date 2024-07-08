@@ -1,0 +1,3 @@
+[submodule "0005_add_ord/ord-data"]
+	path = 0005_add_ord/ord-data
+	url = https://github.com/open-reaction-database/ord-data.git
