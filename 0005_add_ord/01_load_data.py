@@ -12,6 +12,7 @@ from ord_schema.proto.reaction_pb2 import CompoundIdentifier
 import pandas as pd
 from py2neo import Graph
 from tqdm import tqdm
+from rdkit import Chem
 
 from ord_types import ReactionComponent
 
@@ -149,9 +150,16 @@ for gz_path in tqdm(all_gz_paths):
             for component in components:
                 component_json = json.loads(MessageToJson(component))
                 inchi = None
+                smiles = None
                 for identifier in component.identifiers:
                     if identifier.type == CompoundIdentifier.INCHI:
                         inchi = identifier.value
+                    if identifier.type == CompoundIdentifier.SMILES:
+                        smiles = identifier.value
+
+                if not inchi and smiles:
+                    chem = Chem.MolFromSmiles(smiles)
+                    inchi = Chem.MolToInchi(chem)
                 if not inchi:
                     save_error(rxn_json, "inputs_identifiers")
                     total_errors += 1
@@ -186,6 +194,13 @@ for gz_path in tqdm(all_gz_paths):
                 for identifier in component.identifiers:
                     if identifier.type == CompoundIdentifier.INCHI:
                         inchi = identifier.value
+                    if identifier.type == CompoundIdentifier.SMILES:
+                        smiles = identifier.value
+
+                if not inchi and smiles:
+                    chem = Chem.MolFromSmiles(smiles)
+                    inchi = Chem.MolToInchi(chem)
+
                 if not inchi:
                     save_error(rxn_json, "outcomes_identifiers")
                     total_errors += 1
