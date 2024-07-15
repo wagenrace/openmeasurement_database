@@ -5,16 +5,14 @@ from pathlib import Path
 from typing import List
 from uuid import uuid4
 
+import pandas as pd
 from google.protobuf.json_format import MessageToJson
+from helpers import get_inchi
 from ord_schema.message_helpers import load_message
 from ord_schema.proto import dataset_pb2
-from ord_schema.proto.reaction_pb2 import CompoundIdentifier
-import pandas as pd
+from ord_types import ReactionComponent
 from py2neo import Graph
 from tqdm import tqdm
-from rdkit import Chem
-
-from ord_types import ReactionComponent
 
 with open("config.json") as f:
     config = json.load(f)
@@ -102,7 +100,7 @@ def upload_outgoing_components(outgoing_components):
                 WITH r_id, inchi
                 MATCH (r:Reaction {reactionId: r_id})
                 MERGE (c:Compound {inChI: inchi})
-                MERGE (r)-[:OUTPUT]->(c)
+                MERGE (r)-[:OUTCOME]->(c)
             } IN TRANSACTIONS OF 1000 ROWS
         """
     )
@@ -141,99 +139,90 @@ for gz_path in tqdm(all_gz_paths):
 
         # Inputs are required
         inputs = reaction.inputs
-        input_components: List[ReactionComponent] = []
+        input_reaction_components: List[ReactionComponent] = []
 
         # Identifiers need to have type InChI
         inputs_identifiers_are_inchi = True
+
+        # Get the components from all states
+        input_components = []
         for input_state in inputs.keys():
             components = inputs[input_state].components
             for component in components:
-                component_json = json.loads(MessageToJson(component))
-                inchi = None
-                smiles = None
-                for identifier in component.identifiers:
-                    if identifier.type == CompoundIdentifier.INCHI:
-                        inchi = identifier.value
-                    if identifier.type == CompoundIdentifier.SMILES:
-                        smiles = identifier.value
+                input_components.append([input_state, component])
 
-                if not inchi and smiles:
-                    chem = Chem.MolFromSmiles(smiles)
-                    inchi = Chem.MolToInchi(chem)
-                if not inchi:
-                    save_error(rxn_json, "inputs_identifiers")
-                    total_errors += 1
-                    inputs_identifiers_are_inchi = False
-                    break
-
-                input_components.append(
-                    ReactionComponent(
-                        state=input_state,
-                        inchi=inchi,
-                        amount=str(component.amount),
-                        reaction_role=component_json.get("reactionRole", "UNKNOWN"),
-                        reaction_id=reaction_id,
-                    )
-                )
-
-            if not inputs_identifiers_are_inchi:
+        # Check if all components have InChI
+        for input_state, component in input_components:
+            component_json = json.loads(MessageToJson(component))
+            inchi = get_inchi(component)
+            if not inchi:
+                save_error(rxn_json, "inputs_identifiers")
+                total_errors += 1
+                inputs_identifiers_are_inchi = False
                 break
+
+            input_reaction_components.append(
+                ReactionComponent(
+                    state=input_state,
+                    inchi=inchi,
+                    amount=str(component.amount),
+                    reaction_role=component_json.get("reactionRole", "UNKNOWN"),
+                    reaction_id=reaction_id,
+                )
+            )
+
+        # If 1 component is not InChI, skip the reaction
         if not inputs_identifiers_are_inchi:
             continue
 
         # outcomes are required
         outcomes = reaction.outcomes
-        outcome_components: List[ReactionComponent] = []
+        outcome_reaction_components: List[ReactionComponent] = []
 
         # Identifiers need to have type InChI
-        outcomes_identifiers_are_inchi = True
+        outcome_components = []
         for outcome in outcomes:
             components = outcome.products
-            for component in components:
-                component_json = json.loads(MessageToJson(component))
-                for identifier in component.identifiers:
-                    if identifier.type == CompoundIdentifier.INCHI:
-                        inchi = identifier.value
-                    if identifier.type == CompoundIdentifier.SMILES:
-                        smiles = identifier.value
+            outcome_components += components
 
-                if not inchi and smiles:
-                    chem = Chem.MolFromSmiles(smiles)
-                    inchi = Chem.MolToInchi(chem)
+        outcomes_identifiers_are_inchi = True
+        for component in components:
+            inchi = get_inchi(component)
 
-                if not inchi:
-                    save_error(rxn_json, "outcomes_identifiers")
-                    total_errors += 1
-                    outcomes_identifiers_are_inchi = False
-                    break
-
-                outcome_components.append(
-                    ReactionComponent(
-                        state="product",
-                        inchi=inchi,
-                        amount="",
-                        reaction_role="PRODUCT",
-                        reaction_id=reaction_id,
-                    )
-                )
-
-            if not outcomes_identifiers_are_inchi:
+            if not inchi:
+                save_error(rxn_json, "outcomes_identifiers")
+                total_errors += 1
+                outcomes_identifiers_are_inchi = False
                 break
+
+            outcome_reaction_components.append(
+                ReactionComponent(
+                    state="product",
+                    inchi=inchi,
+                    amount="",
+                    reaction_role="PRODUCT",
+                    reaction_id=reaction_id,
+                )
+            )
+
+        # If 1 component is not InChI, skip the reaction
+        if not outcomes_identifiers_are_inchi:
+            continue
 
         # Put all on the list
         all_reactions.append({"reaction_id": reaction_id})
-        for i in input_components:
+        for i in input_reaction_components:
             all_incoming_components.append(dict(i))
-        for i in outcome_components:
+        for i in outcome_reaction_components:
             all_outgoing_components.append(dict(i))
 
-        if len(all_reactions) > 1000:
-            upload_reactions(all_reactions)
-            all_reactions = []
-            upload_incoming_components(all_incoming_components)
-            all_incoming_components = []
-            upload_outgoing_components(all_outgoing_components)
-            all_outgoing_components = []
+    if len(all_reactions) > 1000:
+        upload_reactions(all_reactions)
+        all_reactions = []
+        upload_incoming_components(all_incoming_components)
+        all_incoming_components = []
+        upload_outgoing_components(all_outgoing_components)
+        all_outgoing_components = []
 
 upload_reactions(all_reactions)
 upload_incoming_components(all_incoming_components)
