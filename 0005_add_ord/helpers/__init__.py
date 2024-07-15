@@ -1,0 +1,1 @@
+from .get_inchi_from_component import get_inchi
